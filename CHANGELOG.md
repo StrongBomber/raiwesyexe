@@ -5,6 +5,17 @@ Tüm önemli değişiklikler bu dosyada tutulur. Sürüm biçimi: `<upstream>-<r
 
 ## [Unreleased]
 
+### Eklenen
+- GitHub Actions workflow (`.github/workflows/build.yml`): her push/PR'de
+  `make all` + `make repo` + artifact yükleme; macOS + Theos ile companion
+  tweak derlemesi (rootful + rootless); `v*` tag'lerinde otomatik Release.
+- Companion tweak'e StartApp reklam engelleme (3 katman: görünüm bastırma,
+  interstitial/splash sunum engelleme, reklam ağı istek engelleme) —
+  `tweak` 0.2.0. Varsayılan açık; `BlockAds`/`BlockAdNetwork`/`LogAdClasses`
+  tercihleriyle yönetilir. Binary'ye dokunulmaz.
+- `docs/ANALIZ.md` §11-12: StartApp SDK bulguları + derleme ortamı izleri
+  (Rust crate'leri, GHA runner yolları).
+
 ## [0.8.9.2-1] - 2026-09-09
 
 ### Eklenen

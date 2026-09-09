@@ -1,0 +1,113 @@
+# iGameGod paket hatti: her push/PR'de otomatik derle + test et.
+# 'v*' tag'lerinde GitHub Release olusturur.
+#
+# Isler:
+#   paketle  Ubuntu'da deb hatti: make all (ac, derle x2, dogrula, test) + make repo
+#   tweak    macOS + Theos ile companion tweak'i derle (rootful + rootless)
+#   release  tag push'unda derlenen deb'leri Release'e ekler
+#
+# Not: Ubuntu adiminda ek paket kurulumu gerekmez; dpkg-deb/ar/tar/xz/
+# bzip2/python3/make/git onceden kurulu gelir.
+
+name: Derle ve Test Et
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  paketle:
+    name: Deb hatti (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v4
+
+      - name: Surum bilgisi
+        run: cat VERSION
+
+      - name: Ac, derle, dogrula, test et
+        run: make all
+
+      - name: APT deposu uret
+        run: make repo
+
+      - name: Deb'leri yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: igg-debs
+          path: build/*.deb
+          if-no-files-found: error
+
+      - name: APT deposunu yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: apt-repo
+          path: build/repo/
+          if-no-files-found: error
+
+  tweak:
+    name: Companion tweak (macOS + Theos)
+    runs-on: macos-latest
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v4
+
+      - name: Xcode bilgisi
+        run: xcodebuild -version
+
+      - name: Theos kur
+        run: bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
+
+      - name: Tweak'i derle (rootful + rootless)
+        run: |
+          export THEOS="$HOME/theos"
+          test -f "$THEOS/makefiles/common.mk"
+          cd tweak
+          TWEEK_VER="$(awk -F': *' '/^Version:/ {print $2}' control)"
+          make package
+          mv packages/*.deb "packages/com.example.iggcompanion_${TWEEK_VER}_iphoneos-arm.rootful.deb"
+          THEOS_PACKAGE_SCHEME=rootless make package
+          mv packages/*.deb "packages/com.example.iggcompanion_${TWEEK_VER}_iphoneos-arm64.rootless.deb"
+          ls -la packages/
+
+      - name: Tweak deb'lerini yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: igg-tweak
+          path: tweak/packages/*.deb
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release (tag)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [paketle, tweak]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Artifact'leri indir
+        uses: actions/download-artifact@v4
+        with:
+          path: release-files
+          merge-multiple: true
+
+      - name: Release olustur
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          ls -la release-files
+          gh release create "$TAG" release-files/*.deb \
+            --title "$TAG" \
+            --generate-notes

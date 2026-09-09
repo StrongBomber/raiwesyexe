@@ -73,3 +73,31 @@ Upstream 0.8.9.2'ye göre bu repo (`0.8.9.2-1`) neleri değiştirir/ekler.
 - 3 güvenli örnek hook (`Tweak.x`): overlay gösterim günlüğü, dokunuş
   sayacı, yüzen buton kancası + `Enabled` kapatma anahtarı.
 - Derleme macOS + Theos gerektirir (bkz. `tweak/README.md`).
+
+## F9. Reklam engelleme (companion tweak, v0.2.0)
+
+- Bulgu: framework'e StartApp (start.io) SDK statik bağlı — banner,
+  interstitial ve splash reklamlar (`docs/ANALIZ.md` §11).
+- Yöntem: binary'ye yama YOK; tweak 3 katman uygular:
+  1. reklam görünümlerini pencereye eklenirken gizleme + kaldırma,
+  2. interstitial/splash `present` sunumlarını atlama (completion çağırılır),
+  3. StartApp/reklam sunucularına giden ağ isteklerini "çevrimdışı"
+     hatasıyla düşürme.
+- Güvenlik: adı `GameGod` içeren sınıflar asla engellenmez; 37 anahtar
+  kelimenin hiçbiri iGameGod'un 138 sınıfı ve yaygın UIKit sınıflarıyla
+  çakışmaz (denetimden geçti); her engelleme günlüğe yazılır.
+- Tercihler (`com.example.iggcompanion.plist`): `Enabled`, `BlockAds`,
+  `BlockAdNetwork`, `LogAdClasses` (tümü varsayılan açık).
+- Oyun içindeki overlay reklamları için filtre, oyun bundle kimlikleriyle
+  genişletilebilir (bkz. `tweak/README.md`).
+- ⚠️ Cihazda test edilmedi: kurulum sonrası günlükleri izleyin
+  (`tweak/README.md` "Test etme"); CI yalnızca derlenebilirliği kanıtlar.
+- Kapsam dışı: attribution/ölçümleme SDK'ları (görünür reklam yok) ve
+  delege-tabanlı ağ istekleri.
+
+## F10. Otomatik derleme (CI)
+
+- `.github/workflows/build.yml`: her push/PR'de Ubuntu'da `make all` +
+  `make repo` koşar; `.deb`'ler ve APT deposu artifact olarak yüklenir.
+- macOS işi Theos ile companion tweak'i derler (rootful + rootless).
+- `v*` tag'lerinde 4 `.deb` otomatik GitHub Release'e eklenir.

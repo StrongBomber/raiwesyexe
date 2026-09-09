@@ -127,3 +127,33 @@ flowchart TD
    `postinst` ile yetkilendirilir.
 3. Binary'ler kapalı kaynaktır; yeni **uygulama-içi** özellikler ancak
    `tweak/` desenindeki companion tweak'lerle eklenebilir.
+
+## 11. Reklam SDK'si bulgulari (StartApp)
+
+`strings` taramasiyla framework icinde **StartApp (start.io) SDK** izleri bulundu:
+
+- `StartAppProvider`, `BannerAdConfig` / `BannerAdController`,
+  `InterstitialAdConfig` / `InterstitialAdController` (Swift sembol adlari)
+- `window.startappad.closeSplash` (splash reklam kapatma koprusu)
+- `addStartAppParamsToURL:` (isteklere reklam parametresi ekleme)
+- `adMobAdapterVersion` (AdMob mediation bagdastiricisi dizgisi)
+- 9 adet takip-API dizgisi (`advertisingIdentifier`, `ASIdentifierManager`,
+  `requestTrackingAuthorization`, ...)
+
+Info.plist'te `GADApplicationIdentifier` / `SKAdNetworkItems` yok; AdMob
+dogrudan degil, varsa StartApp mediation uzerinden devrede. iGameGod'un kendi
+modulunde (`iGameGod-Swift.h`) reklam sinifi yok: SDK statik bagli ve siniflar
+yalnizca calisma aninda ObjC runtime'da gorunur. Bu yuzden reklam engelleme,
+`tweak/` icindeki companion ile calisma-ani sinif adi eslesmesiyle yapilir
+(bkz. `OZELLIKLER.md` F9). Binary'ye yama yapilmaz; orijinal paket aynen korunur.
+
+Not: `AdjustCfaOffsetEx` gibi attribution (olcümleme) SDK izleri de goruldu;
+gorunur reklam gostermedikleri icin engelleme kapsami disinda birakildi.
+
+## 12. Derleme ortami izleri
+
+Framework dizgileri arasinda Rust crate yollari var:
+`/Users/runner/.cargo/registry/...` (`dashmap`, `hashbrown`, `once_cell`,
+`parking_lot`, `smallvec`, `oslog`). `/Users/runner` yolu, upstream'in
+GitHub Actions `macos` runner'larinda derlendigini gosterir (projenin bir
+kismi Rust iceriyor).

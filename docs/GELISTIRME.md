@@ -61,6 +61,31 @@ make repo
 Cihazda Sileo → Kaynaklar → `https://KULLANICI.github.io/REPO` ekleyin
 (`build/repo/index.html` derin bağlantı düğmeleri içerir).
 
+## CI (GitHub Actions)
+
+`.github/workflows/build.yml` her push ve PR'de çalışır:
+
+| İş | Runner | Ne yapar |
+|---|---|---|
+| `paketle` | `ubuntu-latest` | `make all` + `make repo`; `igg-debs` ve `apt-repo` artifact'leri yüklenir |
+| `tweak` | `macos-latest` | Theos kurar, companion tweak'i derler (rootful + rootless); `igg-tweak` artifact'i yüklenir |
+| `release` | `ubuntu-latest` | Yalnızca `v*` tag'lerinde: 4 `.deb`'i GitHub Release'e ekler |
+
+Release çıkarma:
+
+```bash
+git tag v0.8.9.2-1 && git push origin v0.8.9.2-1
+# -> Actions 'release' işi otomatik Release oluşturur (--generate-notes ile)
+```
+
+Notlar:
+
+- Ubuntu işi ek `apt` kurulumu gerektirmez (araçlar önyüklü gelir).
+- macOS işi [Theos kurulum betiğini](https://theos.dev/docs/installation-macos)
+  çalıştırır; ilk kurulum birkaç dakika sürebilir.
+- Tweak derlemesi CI'da **kanıtlanır** (sözdizimi/mantık hataları push'ta
+  yakalanır), ancak davranış testi yine de cihazda yapılmalıdır.
+
 ## Tweak geliştirme
 
 1. `make extract` — genel header'lar:
@@ -68,16 +93,19 @@ Cihazda Sileo → Kaynaklar → `https://KULLANICI.github.io/REPO` ekleyin
 2. `tweak/Tweak.x` desenini izleyin: minimal `@interface` + `%hook` +
    `%orig` + günlük. Detay: `tweak/README.md`.
 3. macOS'ta `cd tweak && make package`.
+4. Reklam anahtarı eklerken çakışma denetimini unutmayın
+   (`tweak/README.md` "Yeni anahtar ekleme").
 
 ## Dizin yapısı
 
 ```
 .
+├── .github/workflows/   # CI: otomatik derleme + release
 ├── upstream/            # orijinal .deb (değiştirilmez)
 ├── packaging/control/   # control + preinst/postinst/prerm/postrm (YENİ)
 ├── scripts/             # extract/package/verify/bump-version/make-repo + lib.sh
 ├── tests/               # mock-kök paketleme testleri
-├── tweak/               # Theos companion tweak şablonu
+├── tweak/               # Theos companion tweak (örnek hooklar + reklam engelleme)
 ├── docs/                # ANALIZ / OZELLIKLER / GELISTIRME
 ├── build/               # üretilenler (git'e girmez)
 ├── VERSION CHANGELOG.md Makefile README.md
@@ -92,5 +120,6 @@ Cihazda Sileo → Kaynaklar → `https://KULLANICI.github.io/REPO` ekleyin
   scriptlerinde + yeni dosyalarda; upstream binary'lere dokunulmaz.
   `verify.sh` bunu SHA256 ile garanti eder.
 - **`tweak/` neden Linux'ta derlenmiyor?** iOS SDK + Theos yalnızca
-  macOS'ta (resmi olarak) kurulur. Kod, gerçek header metotlarına dayandığı
-  için şablon olarak taşınabilir.
+  macOS'ta (resmi olarak) kurulur. CI'daki macOS işi her push'ta derler.
+- **Reklam engelleme nasıl test edilir?** CI derlenebilirliği kanıtlar;
+  davranış testi cihazda: `tweak/README.md` "Test etme".

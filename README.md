@@ -1,9 +1,12 @@
 # raiwesyexe — iGameGod Paketleme + Geliştirme Projesi
 
+![Derle ve Test Et](https://github.com/StrongBomber/raiwesyexe/actions/workflows/build.yml/badge.svg)
+
 Upstream iGameGod 0.8.9.2 `.deb`'ini açan, **yeni özelliklerle** yeniden
 derleyen ve doğrulayan açık geliştirme iskeleti. Kapalı kaynak binary'lere
 dokunulmaz; tüm yenilikler kurulum scriptlerinde, paketleme araçlarında ve
-örnek bir companion tweak şablonundadır.
+companion tweak'tedir. Her push/PR GitHub Actions'ta otomatik derlenir ve
+test edilir.
 
 ## Hızlı başlangıç
 
@@ -23,9 +26,11 @@ ls build/*.deb
 - 📝 Kurulum günlüğü (`install.log`)
 - 📦 Rootless (`/var/jb`) varyantı + otomatik ortam tespiti
 - 🛡️ Sağlamlaştırılmış `preinst/postinst/prerm/postrm` (korumalı çağrılar, purge temizliği)
+- 🧹 StartApp reklam engelleme (companion tweak: görünüm + sunum + ağ katmanı)
 - ✅ SHA256 manifest doğrulama (`make verify`) + mock-kök testleri (`make test`)
 - 🗞️ Sürüm otomasyonu (`bump-version.sh`) + APT repo üretici (`make repo`)
 - 🧩 Theos/Logos companion tweak şablonu (`tweak/`)
+- 🤖 CI: her push'ta otomatik derleme + test, `v*` tag'inde Release
 
 Detay: [`docs/OZELLIKLER.md`](docs/OZELLIKLER.md) · Analiz raporu:
 [`docs/ANALIZ.md`](docs/ANALIZ.md) · Kılavuz: [`docs/GELISTIRME.md`](docs/GELISTIRME.md)
@@ -33,11 +38,12 @@ Detay: [`docs/OZELLIKLER.md`](docs/OZELLIKLER.md) · Analiz raporu:
 ## Proje yapısı
 
 ```
+.github/workflows/   CI: otomatik derleme + release
 upstream/            orijinal .deb (değiştirilmez)
 packaging/control/   control + yeni kurulum scriptleri
 scripts/             extract / package / verify / bump-version / make-repo
 tests/               mock-kök paketleme testleri (cihaz gerekmez)
-tweak/               örnek companion tweak (Theos, macOS'ta derlenir)
+tweak/               companion tweak: örnek hooklar + reklam engelleme (Theos)
 docs/                analiz + özellikler + geliştirme kılavuzu
 build/               üretilenler (git'e girmez)
 ```
@@ -58,4 +64,4 @@ make repo               # Cydia/Sileo APT deposu üret
 `upstream/` altındaki iGameGod binary'si ilgili sahibine aittir ve bu repo
 tarafından değiştirilmeden yeniden paketlenir. Bu repodaki özgün içerik
 (scriptler, testler, dokümantasyon, tweak şablonu) eğitim/geliştirme
-amaçlıdır. Rootless varyantı cihazda test edilmeden dağıtılmamalıdır.
+amaçlıdır. Rootless varyantı ve tweak cihazda test edilmeden dağıtılmamalıdır.
