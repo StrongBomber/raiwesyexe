@@ -61,6 +61,9 @@ make repo
 Cihazda Sileo → Kaynaklar → `https://KULLANICI.github.io/REPO` ekleyin
 (`build/repo/index.html` derin bağlantı düğmeleri içerir).
 
+Not: `build/` altında `*+companion*.deb` varsa repoya da girer; sürümleri
+yüksek olduğundan paket yöneticisinde yükseltme olarak sunulur.
+
 ## CI (GitHub Actions)
 
 `.github/workflows/build.yml` her push ve PR'de çalışır:
@@ -69,6 +72,7 @@ Cihazda Sileo → Kaynaklar → `https://KULLANICI.github.io/REPO` ekleyin
 |---|---|---|
 | `paketle` | `ubuntu-latest` | `make all` + `make repo`; `igg-debs` ve `apt-repo` artifact'leri yüklenir |
 | `tweak` | `macos-latest` | Theos kurar, companion tweak'i derler (rootful + rootless); `igg-tweak` artifact'i yüklenir |
+| `birlestir` | `ubuntu-latest` | Tweak'i ana deb'e gömer; `igg-debs-bundled` artifact'i yüklenir |
 | `release` | `ubuntu-latest` | Yalnızca `v*` tag'lerinde: 4 `.deb`'i GitHub Release'e ekler |
 
 Release çıkarma:
@@ -105,7 +109,7 @@ Notlar:
 ├── .github/workflows/   # CI: otomatik derleme + release
 ├── upstream/            # orijinal .deb (değiştirilmez)
 ├── packaging/control/   # control + preinst/postinst/prerm/postrm (YENİ)
-├── scripts/             # extract/package/verify/bump-version/make-repo + lib.sh
+├── scripts/             # extract/package/verify/bump-version/make-repo/bundle-companion + lib.sh
 ├── tests/               # mock-kök paketleme testleri
 ├── tweak/               # Theos companion tweak (örnek hooklar + reklam engelleme)
 ├── docs/                # ANALIZ / OZELLIKLER / GELISTIRME / IPA

@@ -108,3 +108,15 @@ Upstream 0.8.9.2'ye göre bu repo (`0.8.9.2-1`) neleri değiştirir/ekler.
   `make repo` koşar; `.deb`'ler ve APT deposu artifact olarak yüklenir.
 - macOS işi Theos ile companion tweak'i derler (rootful + rootless).
 - `v*` tag'lerinde 4 `.deb` otomatik GitHub Release'e eklenir.
+
+## F11. Tüm-bir-arada deb (companion gömülü)
+
+- `scripts/bundle-companion.sh`: CI'da derlenen companion `.deb`'indeki
+  dylib+plist'i ana pakete gömer; tek kurulumla reklamsız deneyim.
+- Çıktı: `com.gamegod.igg_<ver>+companion<tweakver>_<arch>.deb`
+  (örn. `0.8.9.2-1+companion0.3.0`), rootful + rootless varyantları.
+- `verify.sh` bundled paketleri özel denetler: upstream içeriği birebir
+  + yalnızca 2 bilinen dosya (Mach-O dylib, geçerli plist).
+- CI `birlestir` işi otomatik üretir (`igg-debs-bundled` artifact'i);
+  `make bundle` ile yerelde de çalışır (tweak `.deb`'leri `build/dl/` altında).
+- APT deposuna girerse sürümü yüksek olduğundan yükseltme olarak sunulur.

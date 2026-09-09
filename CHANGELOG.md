@@ -6,6 +6,9 @@ Tüm önemli değişiklikler bu dosyada tutulur. Sürüm biçimi: `<upstream>-<r
 ## [Unreleased]
 
 ### Eklenen
+- Tüm-bir-arada deb: `scripts/bundle-companion.sh` + CI `birlestir` işi
+  (companion dylib+plist ana pakete gömülür, `+companion` sürümü);
+  `verify.sh` bundled paketleri özel denetler; `make bundle` hedefi.
 - GitHub Actions workflow (`.github/workflows/build.yml`): her push/PR'de
   `make all` + `make repo` + artifact yükleme; macOS + Theos ile companion
   tweak derlemesi (rootful + rootless); `v*` tag'lerinde otomatik Release.

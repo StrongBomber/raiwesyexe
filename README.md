@@ -19,6 +19,7 @@ ls build/*.deb
 |---|---|
 | `build/com.gamegod.igg_<ver>_iphoneos-arm.deb` | rootful varyant |
 | `build/com.gamegod.igg_<ver>_iphoneos-arm64.deb` | rootless (`/var/jb`) varyant |
+| `build/com.gamegod.igg_<ver>+companion<tweak>_<arch>.deb` | tüm-bir-arada varyant (`make bundle` / CI) |
 
 ## Neler eklendi?
 
@@ -30,6 +31,7 @@ ls build/*.deb
 - ✅ SHA256 manifest doğrulama (`make verify`) + mock-kök testleri (`make test`)
 - 🗞️ Sürüm otomasyonu (`bump-version.sh`) + APT repo üretici (`make repo`)
 - 🧩 Theos/Logos companion tweak şablonu (`tweak/`)
+- 📦 Tüm-bir-arada deb: companion gömülü tek kurulum (`F11`)
 - 🤖 CI: her push'ta otomatik derleme + test, `v*` tag'inde Release
 
 Detay: [`docs/OZELLIKLER.md`](docs/OZELLIKLER.md) · Analiz raporu:

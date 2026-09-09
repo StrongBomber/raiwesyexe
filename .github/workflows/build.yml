@@ -107,10 +107,47 @@ jobs:
           path: tweak/packages/*.deb
           if-no-files-found: error
 
+  birlestir:
+    name: Tum-bir-arada deb (Ubuntu)
+    needs: [paketle, tweak]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v4
+
+      - name: Deb'leri indir
+        uses: actions/download-artifact@v4
+        with:
+          name: igg-debs
+          path: dl/igg
+
+      - name: Tweak deb'lerini indir
+        uses: actions/download-artifact@v4
+        with:
+          name: igg-tweak
+          path: dl/tweak
+
+      - name: Birlestir (rootful + rootless)
+        run: |
+          mkdir -p bundle-out
+          ./scripts/bundle-companion.sh --igg dl/igg/com.gamegod.igg_*_iphoneos-arm.deb --tweak dl/tweak/*_iphoneos-arm.rootful.deb --output bundle-out/
+          ./scripts/bundle-companion.sh --igg dl/igg/com.gamegod.igg_*_iphoneos-arm64.deb --tweak dl/tweak/*_iphoneos-arm64.rootless.deb --output bundle-out/
+          ls -la bundle-out/
+
+      - name: Birlesik deb'leri dogrula
+        run: ./scripts/verify.sh bundle-out/*.deb
+
+      - name: Birlesik deb'leri yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: igg-debs-bundled
+          path: bundle-out/
+          if-no-files-found: error
+
   release:
     name: GitHub Release (tag)
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [paketle, tweak]
+    needs: [paketle, tweak, birlestir]
     runs-on: ubuntu-latest
     permissions:
       contents: write

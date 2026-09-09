@@ -68,6 +68,29 @@ by_path() {
   awk '{print $NF " " $0}' | LC_ALL=C sort -k1,1 | cut -d' ' -f2-
 }
 
+# Bundled deb'lerdeki companion dosyalarini dogrula (dylib Mach-O + plist gecerli).
+check_companion_files() {
+  local dylib plist
+  dylib="$(find "$WORK/data" -path '*DynamicLibraries/IGGCompanion.dylib' | head -n 1)"
+  plist="$(find "$WORK/data" -path '*DynamicLibraries/IGGCompanion.plist' | head -n 1)"
+  if [[ -z "$dylib" || -z "$plist" ]]; then
+    vfail "bundled: companion dosyalari bulunamadi"; return 0
+  fi
+  vpass "bundled: companion dosyalari mevcut"
+  local magic
+  magic="$(od -A n -t x1 -N 4 "$dylib" 2>/dev/null | tr -d ' \n')"
+  if [[ "$magic" == "cffaedfe" || "$magic" == "cafebabe" ]]; then
+    vpass "bundled: dylib Mach-O ($magic)"
+  else
+    vfail "bundled: dylib sihri yanlis: $magic"
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import plistlib,sys; plistlib.load(open(sys.argv[1],"rb"))' "$plist" 2>/dev/null       && vpass "bundled: plist gecerli" || vfail "bundled: plist BOZUK"
+  else
+    [[ -s "$plist" ]] && vpass "bundled: plist mevcut (icerik atlandi)"                      || vfail "bundled: plist BOS"
+  fi
+}
+
 # $1: deb -> control uyelerinin "kip ad" listesi.
 # Not: pipe uzerinden okurken bazi tar surumleri sikistirmayi otomatik
 # algilamaz; uye uzantisina gore acik bayrak verilir.
@@ -114,8 +137,15 @@ for deb in "${DEBS[@]}"; do
   VER="$(dpkg-deb -f "$deb" Version 2>/dev/null || true)"
   ARCH="$(dpkg-deb -f "$deb" Architecture 2>/dev/null || true)"
   [[ "$PKG" == "com.gamegod.igg" ]] && vpass "Package = $PKG" || vfail "Package yanlis: '$PKG'"
-  [[ "$VER" == "$VERSION" ]] && vpass "Version = $VER (VERSION ile tutarli)" \
-                             || vfail "Version uyusmazligi: deb=$VER, VERSION=$VERSION"
+  BUNDLED=0
+  [[ "$VER" == *"+companion"* ]] && BUNDLED=1
+  if [[ "$BUNDLED" -eq 1 ]]; then
+    [[ "$VER" == "$VERSION"* ]] && vpass "Version = $VER (bundled, VERSION tabanli)" \
+                               || vfail "Version uyusmazligi: deb=$VER, beklenen $VERSION+..."
+  else
+    [[ "$VER" == "$VERSION" ]] && vpass "Version = $VER (VERSION ile tutarli)" \
+                               || vfail "Version uyusmazligi: deb=$VER, VERSION=$VERSION"
+  fi
 
   VARIANT="rootful"
   [[ "$deb" == *iphoneos-arm64.deb ]] && VARIANT="rootless"
@@ -142,13 +172,23 @@ for deb in "${DEBS[@]}"; do
   else
     cp "$WORK/upstream.manifest" "$WORK/expected.manifest"
   fi
-  by_path < "$WORK/expected.manifest" > "$WORK/expected.sorted"
-  by_path < "$WORK/actual.manifest" > "$WORK/actual.sorted"
+  if [[ "$BUNDLED" -eq 1 ]]; then
+    grep -v 'IGGCompanion' "$WORK/actual.manifest" > "$WORK/actual.nocompanion"
+    by_path < "$WORK/expected.manifest" > "$WORK/expected.sorted"
+    by_path < "$WORK/actual.nocompanion" > "$WORK/actual.sorted"
+  else
+    by_path < "$WORK/expected.manifest" > "$WORK/expected.sorted"
+    by_path < "$WORK/actual.manifest" > "$WORK/actual.sorted"
+  fi
   if diff -u "$WORK/expected.sorted" "$WORK/actual.sorted" > "$WORK/manifest.diff"; then
     vpass "data manifesti beklenenle birebir ayni ($(wc -l < "$WORK/actual.sorted" | tr -d ' ') kayit)"
   else
     vfail "data manifesti farkli (ilk 20 satir):"
     head -20 "$WORK/manifest.diff" >&2
+  fi
+
+  if [[ "$BUNDLED" -eq 1 ]]; then
+    check_companion_files
   fi
 
   # symlink hedefi
