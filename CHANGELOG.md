@@ -6,6 +6,9 @@ Tüm önemli değişiklikler bu dosyada tutulur. Sürüm biçimi: `<upstream>-<r
 ## [Unreleased]
 
 ### Eklenen
+- CI `tweak` işi sağlamlaştırıldı: kırılgan `install-theos` betiği yerine
+  `git clone` ile kurulum (yamalı-SDK indirme adımı atlandı); rootful ve
+  rootless derlemeler ayrı adımlara bölündü.
 - GitHub Actions workflow (`.github/workflows/build.yml`): her push/PR'de
   `make all` + `make repo` + artifact yükleme; macOS + Theos ile companion
   tweak derlemesi (rootful + rootless); `v*` tag'lerinde otomatik Release.

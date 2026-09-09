@@ -81,8 +81,10 @@ git tag v0.8.9.2-1 && git push origin v0.8.9.2-1
 Notlar:
 
 - Ubuntu işi ek `apt` kurulumu gerektirmez (araçlar önyüklü gelir).
-- macOS işi [Theos kurulum betiğini](https://theos.dev/docs/installation-macos)
-  çalıştırır; ilk kurulum birkaç dakika sürebilir.
+- macOS işi Theos'u `git clone` ile kurar (`brew install ldid xz` sonrası);
+  `install-theos` betiğindeki yamalı-SDK indirmesi CI'da kırılgan olduğu için
+  (exit 8) bilerek kullanılmaz. Tweak yalnızca genel UIKit API'leri
+  kullandığından Xcode'un SDK'ları yeterlidir.
 - Tweak derlemesi CI'da **kanıtlanır** (sözdizimi/mantık hataları push'ta
   yakalanır), ancak davranış testi yine de cihazda yapılmalıdır.
 

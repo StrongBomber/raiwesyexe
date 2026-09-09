@@ -6,8 +6,13 @@
 #   tweak    macOS + Theos ile companion tweak'i derle (rootful + rootless)
 #   release  tag push'unda derlenen deb'leri Release'e ekler
 #
-# Not: Ubuntu adiminda ek paket kurulumu gerekmez; dpkg-deb/ar/tar/xz/
-# bzip2/python3/make/git onceden kurulu gelir.
+# Notlar:
+# - Ubuntu adiminda ek paket kurulumu gerekmez; dpkg-deb/ar/tar/xz/
+#   bzip2/python3/make/git onceden kurulu gelir.
+# - macOS adiminda install-theos betigi bilerek KULLANILMAZ: icindeki
+#   yamali-SDK indirmesi (install-sdk) CI'da kirilgan (exit 8). Tweak
+#   yalnizca genel UIKit API'leri kullandigindan Xcode SDK'lari yeterli;
+#   Theos dogrudan klonlanir.
 
 name: Derle ve Test Et
 
@@ -64,19 +69,31 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Xcode bilgisi
-        run: xcodebuild -version
-
-      - name: Theos kur
-        run: bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
-
-      - name: Tweak'i derle (rootful + rootless)
         run: |
-          export THEOS="$HOME/theos"
-          test -f "$THEOS/makefiles/common.mk"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+
+      - name: Theos bagimliliklari
+        run: brew install ldid xz
+
+      - name: Theos klonla
+        run: |
+          git clone --recursive https://github.com/theos/theos.git "$HOME/theos"
+          test -f "$HOME/theos/makefiles/common.mk"
+          echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
+
+      - name: Tweak'i derle (rootful)
+        run: |
           cd tweak
           TWEEK_VER="$(awk -F': *' '/^Version:/ {print $2}' control)"
           make package
           mv packages/*.deb "packages/com.example.iggcompanion_${TWEEK_VER}_iphoneos-arm.rootful.deb"
+          ls -la packages/
+
+      - name: Tweak'i derle (rootless)
+        run: |
+          cd tweak
+          TWEEK_VER="$(awk -F': *' '/^Version:/ {print $2}' control)"
           THEOS_PACKAGE_SCHEME=rootless make package
           mv packages/*.deb "packages/com.example.iggcompanion_${TWEEK_VER}_iphoneos-arm64.rootless.deb"
           ls -la packages/

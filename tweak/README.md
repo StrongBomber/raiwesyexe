@@ -17,7 +17,8 @@ sınıf adlarını kullanır (`Tweak.x` içindeki yorumlara bakın).
 > Not: Bu dizindeki kod Linux'ta **derlenemez** (iOS SDK gerekir).
 > `make package` bu repo kökündeki paketleme hedefidir; tweak'i derlemek için
 > macOS'ta bu dizine girip `make package` çalıştırın. CI (`macos-latest`)
-> her push'ta derleyip `.deb`'leri artifact olarak yükler.
+> her push'ta Theos'u klonlayıp derler, `.deb`'leri artifact olarak yükler
+> (yamalı SDK gerekmez; Xcode SDK'ları yeterli).
 
 ## Derleme
 
