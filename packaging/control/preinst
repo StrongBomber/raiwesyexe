@@ -1,0 +1,84 @@
+#!/bin/bash
+# iGameGod preinst — yükseltme/kurulum ÖNCESİ kullanıcı filtrelerini yedekler.
+#
+# Orijinal davranış: filtreleri /tmp'ye tek slot olarak kopyalardı (reboot'ta
+# kaybolur, üst üste kurulumlarda ezilir).
+# Yeni davranış: zaman damgalı kalıcı yedekler
+#   /var/mobile/Library/iGameGod/backups/preinst-<YYYYmmdd-HHMMSS>/
+# altında tutulur; son 5 yedek saklanır. Her adım install.log'a yazılır.
+#
+# Test edilebilirlik: IGG_ROOT doluysa tüm yollar onun altına kurulur
+# (bkz. tests/test-packaging.sh). IGG_PREFIX ile rootless öneki (/var/jb)
+# elle verilebilir; boşsa otomatik tespit edilir.
+set -u
+
+IGG_ROOT="${IGG_ROOT:-}"
+IGG_PREFIX="${IGG_PREFIX:-}"
+if [[ -z "$IGG_PREFIX" && -d "${IGG_ROOT}/var/jb/Library/MobileSubstrate" ]]; then
+  IGG_PREFIX="/var/jb"
+fi
+
+LIBRARY="${IGG_ROOT}/var/mobile/Library"
+DYNLIB="${IGG_ROOT}${IGG_PREFIX}/Library/MobileSubstrate/DynamicLibraries"
+IGG_HOME="$LIBRARY/iGameGod"
+STAMP="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo nostamp)"
+BACKUP_DIR="$IGG_HOME/backups/preinst-$STAMP"
+LOG_FILE="$IGG_HOME/install.log"
+
+log() {
+  mkdir -p "$IGG_HOME" 2>/dev/null || true
+  echo "[preinst $STAMP] $*" >> "$LOG_FILE" 2>/dev/null || true
+  echo "[iGameGod preinst] $*"
+}
+
+# $1: tweak adı (örn. bfdecrypttweak) -> $DYNLIB/$1.plist yedeklenir.
+save_tweak_filter() {
+  local name="$1" src="$DYNLIB/$1.plist"
+  if [[ -f "$src" ]]; then
+    mkdir -p "$BACKUP_DIR" 2>/dev/null || true
+    if cp -p "$src" "$BACKUP_DIR/$name.plist" 2>/dev/null; then
+      log "yedeklendi: $name.plist"
+    else
+      log "UYARI: yedeklenemedi: $src"
+    fi
+  else
+    log "atlandı (yok): $src"
+  fi
+}
+
+# Loader filtresi: güncel paketler DynamicLibraries/iGameGodLoader.plist'i
+# $IGG_HOME/substrate.plist'e symlinkler; eski paketler filtreyi root sahipli
+# plist'te tutardı. İkisini de ele al.
+save_igg_loader_filter() {
+  local current="$DYNLIB/iGameGodLoader.plist"
+  local shared="$IGG_HOME/substrate.plist"
+  local staged="$BACKUP_DIR/iGameGodLoader.plist"
+
+  mkdir -p "$BACKUP_DIR" 2>/dev/null || true
+  if [[ -f "$shared" ]]; then
+    cp -p "$shared" "$staged" 2>/dev/null && log "yedeklendi: substrate.plist" \
+      || log "UYARI: yedeklenemedi: $shared"
+  elif [[ -f "$LIBRARY/iGameGod/config.plist" && -f "$current" ]]; then
+    cp -p "$current" "$staged" 2>/dev/null && log "yedeklendi (eski konum): iGameGodLoader.plist" \
+      || log "UYARI: yedeklenemedi: $current"
+  else
+    log "loader filtresi bulunamadı (temiz kurulum olabilir)"
+  fi
+}
+
+# Son 5 preinst yedeğini tut, eskileri buda.
+prune_backups() {
+  [[ -d "$IGG_HOME/backups" ]] || return 0
+  ls -dt "$IGG_HOME"/backups/preinst-* 2>/dev/null | tail -n +6 | while IFS= read -r d; do
+    rm -rf "$d" 2>/dev/null && log "budandı: $d" || true
+  done
+  return 0
+}
+
+log "başlıyor (IGG_PREFIX='$IGG_PREFIX')"
+save_igg_loader_filter
+save_tweak_filter bfdecrypttweak
+save_tweak_filter iGSpoof
+prune_backups
+log "bitti: $BACKUP_DIR"
+exit 0

@@ -1,0 +1,10 @@
+#!/bin/bash
+# iGameGod prerm — kaldırma/yükseltme ÖNCESİ çalışır.
+# Orijinal paketde boştu; burada overlay penceresinin asılı kalmaması için
+# uygulamayı zarifçe durduruyoruz. Hata verirse işleme devam edilir.
+set -u
+
+if command -v killall >/dev/null 2>&1; then
+  killall iGameGod 2>/dev/null || true
+fi
+exit 0

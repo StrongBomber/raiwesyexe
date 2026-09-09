@@ -1,0 +1,9 @@
+# Derleme çıktıları (extract, stage, yeniden derlenen .deb'ler, apt repo)
+build/
+
+# Editör / sistem artıkları
+.DS_Store
+*~
+*.swp
+*.orig
+*.rej

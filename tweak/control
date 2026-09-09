@@ -1,0 +1,9 @@
+Package: com.example.iggcompanion
+Name: IGGCompanion
+Description: iGameGod icin ornek companion tweak (ozellestirilebilir sablon)
+Maintainer: raiwesyexe
+Author: raiwesyexe
+Section: Tweaks
+Depends: mobilesubstrate, com.gamegod.igg
+Architecture: iphoneos-arm
+Version: 0.1.0

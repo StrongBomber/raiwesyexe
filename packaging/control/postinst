@@ -1,0 +1,112 @@
+#!/bin/bash
+# iGameGod postinst — kurulum SONRASI: yedekleri geri yükler, dizinleri ve
+# izinleri hazırlar, arayüz önbelleğini tazeler.
+#
+# Yeni davranışlar (orijinale göre):
+#  - preinst'in aldığı EN SON zaman damgalı yedekten geri yükleme yapar.
+#  - Tüm adımlar install.log'a yazılır.
+#  - killall/uicache yoksa kurulum patlamaz (korumalı çağrı).
+#  - Rootless (/var/jb) otomatik tespit edilir, IGG_PREFIX ile ezilebilir.
+#  - Test için IGG_ROOT mock-kök öneki desteklenir.
+set -u
+
+IGG_ROOT="${IGG_ROOT:-}"
+IGG_PREFIX="${IGG_PREFIX:-}"
+if [[ -z "$IGG_PREFIX" && -d "${IGG_ROOT}/var/jb/Library/MobileSubstrate" ]]; then
+  IGG_PREFIX="/var/jb"
+fi
+
+LIBRARY="${IGG_ROOT}/var/mobile/Library"
+DYNLIB="${IGG_ROOT}${IGG_PREFIX}/Library/MobileSubstrate/DynamicLibraries"
+FRAMEWORKS="${IGG_ROOT}${IGG_PREFIX}/Library/Frameworks"
+IGG_HOME="$LIBRARY/iGameGod"
+STAMP="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo nostamp)"
+LOG_FILE="$IGG_HOME/install.log"
+
+log() {
+  mkdir -p "$IGG_HOME" 2>/dev/null || true
+  echo "[postinst $STAMP] $*" >> "$LOG_FILE" 2>/dev/null || true
+  echo "[iGameGod postinst] $*"
+}
+
+latest_backup_dir() {
+  ls -dt "$IGG_HOME"/backups/preinst-* 2>/dev/null | head -n 1 || true
+}
+
+# $1: yedek kaynak, $2: hedef
+restore_file() {
+  local src="$1" dst="$2"
+  [[ -f "$src" ]] || { log "atlandı (yedekte yok): $src"; return 0; }
+  mkdir -p "$(dirname "$dst")" 2>/dev/null || true
+  if [[ -f "$dst" && ! -L "$dst" ]]; then
+    rm -f "$dst" 2>/dev/null || true # üzerine yazma bazı dpkg sürümlerinde takılır
+  fi
+  if cp -p "$src" "$dst" 2>/dev/null; then
+    log "geri yüklendi: $dst"
+  else
+    log "UYARI: geri yüklenemedi: $dst"
+  fi
+  return 0
+}
+
+restore_all_filters() {
+  local bdir
+  bdir="$(latest_backup_dir)"
+  if [[ -n "$bdir" && -d "$bdir" ]]; then
+    log "yedek dizini: $bdir"
+    restore_file "$bdir/iGameGodLoader.plist" "$IGG_HOME/substrate.plist"
+    restore_file "$bdir/bfdecrypttweak.plist"  "$DYNLIB/bfdecrypttweak.plist"
+    restore_file "$bdir/iGSpoof.plist"         "$DYNLIB/iGSpoof.plist"
+  else
+    log "geri yüklenecek yedek yok (temiz kurulum olabilir)"
+  fi
+}
+
+prune_backups() {
+  [[ -d "$IGG_HOME/backups" ]] || return 0
+  ls -dt "$IGG_HOME"/backups/preinst-* 2>/dev/null | tail -n +6 | while IFS= read -r d; do
+    rm -rf "$d" 2>/dev/null && log "budandı: $d" || true
+  done
+  return 0
+}
+
+log "başlıyor (IGG_PREFIX='$IGG_PREFIX')"
+
+restore_all_filters
+
+mkdir -p "${IGG_ROOT}/var/mobile/Documents/Decrypted" 2>/dev/null || true
+chmod 777 "${IGG_ROOT}/var/mobile/Documents/Decrypted" 2>/dev/null \
+  && log "hazır: Documents/Decrypted" || log "UYARI: chmod başarısız: Documents/Decrypted"
+
+CMND="${IGG_ROOT}${IGG_PREFIX}/usr/local/bin/cmnd"
+if [[ -f "$CMND" ]]; then
+  chmod 6775 "$CMND" 2>/dev/null \
+    && log "hazır: cmnd (6775)" || log "UYARI: chmod başarısız: $CMND"
+else
+  log "UYARI: bulunamadı: $CMND"
+fi
+
+mkdir -p "$IGG_HOME" 2>/dev/null || true
+chmod 777 "$IGG_HOME" 2>/dev/null || log "UYARI: chmod başarısız: $IGG_HOME"
+
+mkdir -p "$FRAMEWORKS/iGameGod" 2>/dev/null || true
+chmod 777 "$FRAMEWORKS/iGameGod" 2>/dev/null || log "UYARI: chmod başarısız: $FRAMEWORKS/iGameGod"
+
+prune_backups
+
+if command -v killall >/dev/null 2>&1; then
+  killall iGameGod 2>/dev/null || true
+else
+  log "killall yok, atlandı"
+fi
+
+if command -v uicache >/dev/null 2>&1; then
+  uicache >/dev/null 2>&1 || true
+  uicache -i com.gamegod.igg >/dev/null 2>&1 || true
+  log "uicache tazelendi"
+else
+  log "uicache yok, atlandı (SpringBoard simgesini elle yenileyin)"
+fi
+
+log "bitti"
+exit 0

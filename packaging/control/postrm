@@ -1,0 +1,23 @@
+#!/bin/bash
+# iGameGod postrm — kaldırma SONRASI çalışır. $1: remove|purge|upgrade|...
+#  - remove/upgrade: bilgilendirme mesajı (orijinal davranış korunur).
+#  - purge: günlük + yedekleri temizler; KULLANICI VERİSİNE DOKUNMAZ
+#    (substrate.plist / config.plist olduğu gibi kalır).
+set -u
+
+IGG_ROOT="${IGG_ROOT:-}"
+IGG_HOME="${IGG_ROOT}/var/mobile/Library/iGameGod"
+
+case "${1:-}" in
+  purge)
+    rm -f "$IGG_HOME/install.log" 2>/dev/null || true
+    rm -rf "$IGG_HOME/backups" 2>/dev/null || true
+    echo "[iGameGod postrm] purge: günlük ve yedekler temizlendi."
+    echo "[iGameGod postrm] Not: filtre seçimleriniz korundu ($IGG_HOME)."
+    ;;
+  *)
+    echo "Uninstalling will no longer inject the .deb files you installed through iGameGod."
+    echo "To re-enable the tweaks, please install iGameGod again."
+    ;;
+esac
+exit 0

@@ -1,0 +1,10 @@
+Package: com.gamegod.igg
+Name: iGameGod
+Description: Be the god of your games!
+Maintainer: iGameGod
+Author: iGameGod
+Section: Utilities
+Depends: mobilesubstrate (>= 0.9.5000), ldid, fakeroot, odcctools
+Architecture: iphoneos-arm
+Version: 0.8.9.2-1
+Installed-Size: 35372
