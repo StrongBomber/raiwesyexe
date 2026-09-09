@@ -1,18 +1,23 @@
 // IGGCompanion — iGameGod için companion tweak (Theos/Logos).
-// v0.2.0: örnek hook'lar + StartApp reklam engelleme.
+// v0.3.0: örnek hook'lar + StartApp reklam engelleme (5 katman).
 //
 // REKLAM ENGELLEME TASARIMI
 // Pakette StartApp (start.io) SDK statik bağlı bulundu (bkz. docs/ANALIZ.md
-// §11): banner + interstitial + splash. SDK sınıfları header'da yok; ancak
-// çalışma anında ObjC runtime'da adlarıyla görünürler. Bu dosya binary'ye
-// DOKUNMAZ; bunun yerine 3 savunma katmanı uygular:
+// §11): banner + interstitial + splash. Araç açılışlarında (bellek tarayıcı,
+// disassembler vb.) gösterilen interstitial'lar ayrı bir UIWindow içinde de
+// sunulabildiği için pencere katmanı da kapsanır. Binary'ye DOKUNULMAZ;
+// bunun yerine 5 savunma katmanı uygulanır:
 //   Katman 1: reklam görünümleri pencereye eklenirken gizle + kaldır.
 //   Katman 2: interstitial/splash 'present' edilmek istendiğinde sunumu atla.
+//   Katman 2b: reklam pencereleri (UIWindow) anahtar yapılmak/gösterilmek
+//             istendiğinde gizli tut.
 //   Katman 3: StartApp/reklam sunucularına giden ağ isteklerini düşür.
+//   Katman 3b: WKWebView içindeki reklam istekleri/HTML'lerini düşür.
 // Güvenlik: sınıf adı "GameGod" içerenler ASLA engellenmez; tüm katmanlar
-// tercihlerden kapatılabilir; her engelleme günlüğe yazılır.
+// tercihlerden kapatılabilir; her engelleme günlüğe yazılır; bastırma
+// adımları @try/@catch ile sarılıdır (tweak'in kendisi crash'e yol açmaz).
 // NOT: bu kod yazarın cihazında test edilmedi; önce günlükleri izleyin
-// (tweak/README.md "Test etme").
+// (tweak/README.md "Test etme" ve "Crash olursa").
 //
 // Örnek hook'lar, paketin dağıttığı genel header'da (iGameGod-Swift.h)
 // doğrulanan metotlara dayanır:
@@ -38,10 +43,15 @@
 @interface HoverButtonViewController : UIViewController
 @end
 
+@interface WKWebView : UIView
+- (id)loadRequest:(NSURLRequest *)request;
+- (id)loadHTMLString:(NSString *)string baseURL:(NSURL *)baseURL;
+@end
+
 // --- Tercihler (/var/mobile/Library/Preferences/com.example.iggcompanion.plist) ---
 //   Enabled        (varsayılan YES): ana anahtar, NO ise her şey susar.
-//   BlockAds       (varsayılan YES): Katman 1+2 (görünüm + sunum engelleme).
-//   BlockAdNetwork (varsayılan YES): Katman 3 (reklam ağı istek engelleme).
+//   BlockAds       (varsayılan YES): Katman 1+2+2b (görünüm + sunum + pencere).
+//   BlockAdNetwork (varsayılan YES): Katman 3+3b (ağ + webview engelleme).
 //   LogAdClasses   (varsayılan YES): açılışta reklam sınıfı taraması günlüğü.
 static NSString * const kIGGPrefsPath =
     @"/var/mobile/Library/Preferences/com.example.iggcompanion.plist";
@@ -98,6 +108,15 @@ static BOOL IGGClassIsAdLike(Class cls) {
     return NO;
 }
 
+// Pencere + kök view controller zincirine bakarak reklam penceresi tespiti.
+static BOOL IGGWindowIsAdLike(UIWindow *window) {
+    if (window == nil) return NO;
+    if (IGGClassIsAdLike([window class])) return YES;
+    UIViewController *root = [window rootViewController];
+    if (root != nil && IGGClassIsAdLike([root class])) return YES;
+    return NO;
+}
+
 static void IGGNoteBlocked(NSString *what, id obj) {
     _iggAdsBlocked++;
     if (_iggAdsBlocked <= 25 || _iggAdsBlocked % 50 == 0) {
@@ -127,7 +146,7 @@ static void IGGEnumerateAdClasses(void) {
     free(list);
 }
 
-// --- Reklam ağı sunucuları (Katman 3) ---
+// --- Reklam ağı sunucuları (Katman 3/3b) ---
 static BOOL IGGURLIsAdServer(NSURL *url) {
     NSString *host = [[url host] lowercaseString];
     if (host.length == 0) return NO;
@@ -142,6 +161,14 @@ static BOOL IGGURLIsAdServer(NSURL *url) {
 
 static BOOL IGGRequestIsAd(NSURLRequest *request) {
     return request != nil && IGGURLIsAdServer([request URL]);
+}
+
+static BOOL IGGHTMLIsAd(NSString *html) {
+    if (html == nil || html.length == 0 || html.length > 2000000) return NO;
+    NSString *low = [html lowercaseString];
+    return [low containsString:@"startapp"] ||
+           [low containsString:@"doubleclick"] ||
+           [low containsString:@"googlesyndication"];
 }
 
 // Örnek 1: iGameGod overlay'i her gösterildiğinde günlük kaydı.
@@ -192,9 +219,13 @@ static BOOL IGGRequestIsAd(NSURLRequest *request) {
     if (self.window == nil) return;
     if (!IGGClassIsAdLike([self class])) return;
     IGGNoteBlocked(@"gorunum", self);
-    self.hidden = YES;
-    self.frame = CGRectZero;
-    [self removeFromSuperview];
+    @try {
+        self.hidden = YES;
+        self.frame = CGRectZero;
+        [self removeFromSuperview];
+    } @catch (NSException *exception) {
+        IGGLog(@"gorunum kaldirilamadi: %@", exception);
+    }
 }
 
 %end
@@ -210,7 +241,13 @@ static BOOL IGGRequestIsAd(NSURLRequest *request) {
     if (IGGEnabled() && IGGBlockAds() && viewControllerToPresent != nil &&
         IGGClassIsAdLike([viewControllerToPresent class])) {
         IGGNoteBlocked(@"sunum", viewControllerToPresent);
-        if (completion) completion();
+        if (completion) {
+            @try {
+                completion();
+            } @catch (NSException *exception) {
+                IGGLog(@"sunum completion hatasi: %@", exception);
+            }
+        }
         return;
     }
     %orig;
@@ -221,7 +258,36 @@ static BOOL IGGRequestIsAd(NSURLRequest *request) {
     if (!IGGEnabled() || !IGGBlockAds()) return;
     if (!IGGClassIsAdLike([self class])) return;
     IGGNoteBlocked(@"acik-reklam-vc", self);
-    [self dismissViewControllerAnimated:NO completion:nil];
+    @try {
+        [self dismissViewControllerAnimated:NO completion:nil];
+    } @catch (NSException *exception) {
+        IGGLog(@"kapatma hatasi: %@", exception);
+    }
+}
+
+%end
+
+// Katman 2b: reklam pencereleri anahtar yapılmak/gösterilmek istendiğinde
+// gizli tut. Araç açılışlarındaki interstitial'ların tipik sunum yoludur.
+// (GameGodWindow dahil iGameGod pencereleri guard sayesinde etkilenmez.)
+%hook UIWindow
+
+- (void)makeKeyAndVisible {
+    if (IGGEnabled() && IGGBlockAds() && IGGWindowIsAdLike(self)) {
+        IGGNoteBlocked(@"pencere", self);
+        self.hidden = YES;
+        return;
+    }
+    %orig;
+}
+
+- (void)setHidden:(BOOL)hidden {
+    if (!hidden && IGGEnabled() && IGGBlockAds() && IGGWindowIsAdLike(self)) {
+        IGGNoteBlocked(@"pencere-goster", self);
+        %orig(YES);
+        return;
+    }
+    %orig;
 }
 
 %end
@@ -240,7 +306,11 @@ static BOOL IGGRequestIsAd(NSURLRequest *request) {
             NSError *err = [NSError errorWithDomain:NSURLErrorDomain
                                                code:NSURLErrorNotConnectedToInternet
                                            userInfo:nil];
-            completionHandler(nil, nil, err);
+            @try {
+                completionHandler(nil, nil, err);
+            } @catch (NSException *exception) {
+                IGGLog(@"ag completion hatasi: %@", exception);
+            }
         }
         return nil;
     }
@@ -257,7 +327,11 @@ static BOOL IGGRequestIsAd(NSURLRequest *request) {
             NSError *err = [NSError errorWithDomain:NSURLErrorDomain
                                                code:NSURLErrorNotConnectedToInternet
                                            userInfo:nil];
-            completionHandler(nil, nil, err);
+            @try {
+                completionHandler(nil, nil, err);
+            } @catch (NSException *exception) {
+                IGGLog(@"ag completion hatasi: %@", exception);
+            }
         }
         return nil;
     }
@@ -274,7 +348,11 @@ static BOOL IGGRequestIsAd(NSURLRequest *request) {
             NSError *err = [NSError errorWithDomain:NSURLErrorDomain
                                                code:NSURLErrorNotConnectedToInternet
                                            userInfo:nil];
-            completionHandler(nil, nil, err);
+            @try {
+                completionHandler(nil, nil, err);
+            } @catch (NSException *exception) {
+                IGGLog(@"ag completion hatasi: %@", exception);
+            }
         }
         return nil;
     }
@@ -291,8 +369,36 @@ static BOOL IGGRequestIsAd(NSURLRequest *request) {
             NSError *err = [NSError errorWithDomain:NSURLErrorDomain
                                                code:NSURLErrorNotConnectedToInternet
                                            userInfo:nil];
-            completionHandler(nil, nil, err);
+            @try {
+                completionHandler(nil, nil, err);
+            } @catch (NSException *exception) {
+                IGGLog(@"ag completion hatasi: %@", exception);
+            }
         }
+        return nil;
+    }
+    return %orig;
+}
+
+%end
+
+// Katman 3b: WKWebView reklam istekleri/HTML'lerini düşür.
+// (NSURLSession hook'ları WKWebView'in kendi ağ yığınını kapsamaz.)
+// WebKit bağlı değilse bu hook sessizce etkisizdir (Logos uyarı verir).
+%hook WKWebView
+
+- (id)loadRequest:(NSURLRequest *)request {
+    if (IGGEnabled() && IGGBlockAdNet() && IGGRequestIsAd(request)) {
+        IGGNoteBlocked(@"webview-istek", [request URL]);
+        return nil;
+    }
+    return %orig;
+}
+
+- (id)loadHTMLString:(NSString *)string baseURL:(NSURL *)baseURL {
+    if (IGGEnabled() && IGGBlockAdNet() &&
+        (IGGURLIsAdServer(baseURL) || IGGHTMLIsAd(string))) {
+        IGGNoteBlocked(@"webview-html", baseURL);
         return nil;
     }
     return %orig;

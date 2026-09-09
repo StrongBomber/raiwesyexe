@@ -32,7 +32,7 @@ Upstream 0.8.9.2'ye göre bu repo (`0.8.9.2-1`) neleri değiştirir/ekler.
 - Kurulum scriptleri `/var/jb/Library/MobileSubstrate` varsa rootless
   öneki otomatik kullanır (`IGG_PREFIX` ile ezilebilir).
 - ⚠️ **Bilinen sınırlama / test notu:** loader binary'si içinde mutlak
-  `/Library/...` dizgileri geçiyor (bkz. ANALIZ.md §8). Rootless
+  `/Library/...` yolları geçiyor (bkz. ANALIZ.md §8). Rootless
   jailbreak'lerde substrate yolları ElleKit tarafından yönetilir; bu varyant
   cihazda denenmeden "çalışır" kabul edilmemelidir. Test: kur → iGameGod'u
   aç → uygulama seç → hedef uygulamada overlay'in belirdiğini doğrula.
@@ -74,24 +74,31 @@ Upstream 0.8.9.2'ye göre bu repo (`0.8.9.2-1`) neleri değiştirir/ekler.
   sayacı, yüzen buton kancası + `Enabled` kapatma anahtarı.
 - Derleme macOS + Theos gerektirir (bkz. `tweak/README.md`).
 
-## F9. Reklam engelleme (companion tweak, v0.2.0)
+## F9. Reklam engelleme (companion tweak, v0.3.0)
 
 - Bulgu: framework'e StartApp (start.io) SDK statik bağlı — banner,
-  interstitial ve splash reklamlar (`docs/ANALIZ.md` §11).
-- Yöntem: binary'ye yama YOK; tweak 3 katman uygular:
+  interstitial ve splash reklamlar (`docs/ANALIZ.md` §11). Araç
+  açılışlarındaki (bellek tarayıcı, disassembler...) interstitial'lar
+  ayrı pencerede de sunulabildiğinden pencere katmanı eklendi.
+- Yöntem: binary'ye yama YOK; tweak 5 katman uygular:
   1. reklam görünümlerini pencereye eklenirken gizleme + kaldırma,
   2. interstitial/splash `present` sunumlarını atlama (completion çağırılır),
-  3. StartApp/reklam sunucularına giden ağ isteklerini "çevrimdışı"
-     hatasıyla düşürme.
+  3. reklam pencerelerini (`UIWindow` + kök VC adı) gizli tutma,
+  4. StartApp/reklam sunucularına giden ağ isteklerini "çevrimdışı"
+     hatasıyla düşürme,
+  5. `WKWebView` reklam istekleri/HTML'lerini düşürme.
 - Güvenlik: adı `GameGod` içeren sınıflar asla engellenmez; 37 anahtar
   kelimenin hiçbiri iGameGod'un 138 sınıfı ve yaygın UIKit sınıflarıyla
-  çakışmaz (denetimden geçti); her engelleme günlüğe yazılır.
-- Tercihler (`com.example.iggcompanion.plist`): `Enabled`, `BlockAds`,
-  `BlockAdNetwork`, `LogAdClasses` (tümü varsayılan açık).
+  çakışmaz (denetimden geçti); her engelleme günlüğe yazılır; bastırma
+  adımları `@try/@catch` ile sarılıdır (tweak kaynaklı crash olmaz).
+- Tercihler (`com.example.iggcompanion.plist`): `Enabled`, `BlockAds`
+  (katman 1+2+2b), `BlockAdNetwork` (katman 3+3b), `LogAdClasses`
+  (tümü varsayılan açık).
 - Oyun içindeki overlay reklamları için filtre, oyun bundle kimlikleriyle
   genişletilebilir (bkz. `tweak/README.md`).
-- ⚠️ Cihazda test edilmedi: kurulum sonrası günlükleri izleyin
-  (`tweak/README.md` "Test etme"); CI yalnızca derlenebilirliği kanıtlar.
+- ⚠️ Cihazda test edilmedi: kurulum sonrası günlükleri izleyin; crash
+  durumunda katmanları tek tek kapatıp daraltın (`tweak/README.md`
+  "Crash olursa"); CI yalnızca derlenebilirliği kanıtlar.
 - Kapsam dışı: attribution/ölçümleme SDK'ları (görünür reklam yok) ve
   delege-tabanlı ağ istekleri.
 

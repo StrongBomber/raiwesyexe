@@ -6,4 +6,4 @@ Author: raiwesyexe
 Section: Tweaks
 Depends: mobilesubstrate, com.gamegod.igg
 Architecture: iphoneos-arm
-Version: 0.2.0
+Version: 0.3.0

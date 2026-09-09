@@ -6,7 +6,8 @@ sınıf adlarını kullanır (`Tweak.x` içindeki yorumlara bakın).
 
 > NOT: Bu kod yazarın cihazında test edilmedi. Kurduktan sonra önce
 > "Test etme" bölümündeki günlükleri izleyin; sorun görürseniz
-> `Enabled = NO` ile susturun (aşağıda).
+> `Enabled = NO` ile susturun (aşağıda) ve "Crash olursa" bölümündeki
+> bilgileri toplayıp iletin.
 
 ## Gereksinimler (derleme makinesi)
 
@@ -33,6 +34,9 @@ THEOS_PACKAGE_SCHEME=rootless make package   # rootless .deb
 > ayrı adlandırır (`*.rootful.deb` / `*.rootless.deb`). Theos her iki
 > şemada da control'den türeyen adı kullandığı için bu ayrım şarttır.
 
+CI'dan hazır `.deb` alma: GitHub → Actions → son yeşil çalışma →
+Artifacts → `igg-tweak` (içinde rootful + rootless `.deb`'ler).
+
 ## Cihaza kurma
 
 1. Üretilen `.deb`'i cihaza kopyalayın (`scp`) veya Sileo/Zebra dosya
@@ -54,8 +58,8 @@ log show --predicate 'process == "iGameGod"' --last 5m | grep IGGCompanion
 | Anahtar | Varsayılan | Etki |
 |---|---|---|
 | `Enabled` | YES | Ana anahtar; NO ise tweak tamamen susar |
-| `BlockAds` | YES | Katman 1+2: görünüm + interstitial/splash sunum engelleme |
-| `BlockAdNetwork` | YES | Katman 3: reklam ağı isteklerini düşürme |
+| `BlockAds` | YES | Katman 1+2+2b: görünüm + sunum + pencere engelleme |
+| `BlockAdNetwork` | YES | Katman 3+3b: ağ + webview istek engelleme |
 | `LogAdClasses` | YES | Açılışta reklam sınıfı taramasını günlüğe yazma |
 
 Örnek (reklam engellemeyi kapatıp örnek hook'ları tutma):
@@ -67,16 +71,22 @@ log show --predicate 'process == "iGameGod"' --last 5m | grep IGGCompanion
 ## Reklam engelleme (nasıl çalışır)
 
 Pakette StartApp (start.io) SDK statik bağlı bulundu (banner +
-interstitial + splash; bkz. `../docs/ANALIZ.md` §11). Üç katman:
+interstitial + splash; bkz. `../docs/ANALIZ.md` §11). Beş katman:
 
 1. **Görünüm bastırma:** sınıf adı reklam anahtarıyla eşleşen `UIView`,
    pencereye eklenirken gizlenir + sıfırlanır + kaldırılır.
 2. **Sunum engelleme:** reklam view controller `present` edilmek
    istenirse sunum atlanır (`completion` çağırılır, kilitlenme olmaz);
    ekrana başka yolla gelmiş reklam VC'leri anında kapatılır.
-3. **Ağ engelleme:** StartApp/reklam sunucularına (`startapp*`,
+3. **Pencere engelleme (2b):** reklam pencereleri (`UIWindow` + kök VC
+   adına bakılır) anahtar yapılmak/gösterilmek istendiğinde gizli tutulur.
+   Araç açılışlarındaki interstitial'ların tipik sunum yoludur.
+4. **Ağ engelleme:** StartApp/reklam sunucularına (`startapp*`,
    `start.io`, `doubleclick`, `googlesyndication`) giden istekler
    "çevrimdışı" hatasıyla düşürülür (SDK uçak-modu gibi susar).
+5. **Webview engelleme (3b):** `WKWebView` reklam istekleri ve reklam
+   barındıran HTML'ler düşürülür (`NSURLSession` hook'ları WKWebView'in
+   kendi ağ yığınını kapsamaz).
 
 Güvenlik tasarımı:
 
@@ -86,12 +96,16 @@ Güvenlik tasarımı:
   sınıflarıyla çakışmıyor (denetimden geçti).
 - Her engelleme günlüğe yazılır (`reklam engellendi (#N): ...`); ilk 25
   tek tek, sonrası her 50'de bir özetlenir.
+- Bastırma adımları `@try/@catch` ile sarılıdır; tweak'in kendisi
+  exception kaynaklı crash'e yol açmaz.
 
 Sınırlamalar:
 
 - Tweak, reklam SDK sınıflarının **adlarına** dayanır; StartApp SDK'sı
   büyük sürümde sınıf adlarını değiştirirse anahtar listesi
   güncellenmelidir (günlükteki `reklam sinifi adayi` satırları yol gösterir).
+- Nötr adlı (anahtarsız) ara kaplar tek başına yakalanamaz; ancak pencere
+  ve sunum katmanları bunları üstten yakalar.
 - Delege-tabanlı (`completionHandler`'sız) ağ istekleri kapsanmaz.
 - Attribution/ölçümleme SDK'ları (örn. Adjust izleri) bilerek
   kapsanmadı: görünür reklam göstermezler.
@@ -128,11 +142,27 @@ grep "@interface" "$H" | grep -F "YENI-ANAHTAR" || echo "temiz: çakışma yok"
 
 1. Tweak'i kurun, iGameGod'u açın; `IGGCompanion` günlüklerini izleyin:
    `yuklendi (...)` + `reklam sinifi taramasi bitti (...)` görmelisiniz.
-2. Reklam çıkan ekranlara gidin; `reklam engellendi (#N)` satırlarını ve
-   reklamların görünmediğini doğrulayın.
+2. Reklam çıkan ekranlara gidin (bellek tarayıcı, disassembler...);
+   `reklam engellendi (#N)` satırlarını ve reklamların görünmediğini doğrulayın.
 3. Uygulamanın normal ekranlarında (araçlar, ayarlar) bozulma olmadığını
    kontrol edin. Bozulma varsa ilgili katmanı tercihlerden kapatıp
    günlüğü not edin.
+
+## Crash olursa
+
+1. Önce katmanları tek tek kapatıp daraltın:
+   - `BlockAds = NO` ile crash duruyorsa → görünüm/sunum/pencere katmanı,
+   - `BlockAdNetwork = NO` ile duruyorsa → ağ/webview katmanı,
+   - `Enabled = NO` ile bile sürüyorsa → tweak'ten bağımsız (stok iGameGod
+     veya başka tweak çakışması).
+2. Şu bilgileri toplayın:
+   - iOS sürümü + jailbreak türü (rootful/rootless, Dopamine/palera1n/...),
+   - crash log: Ayarlar → Gizlilik ve Güvenlik → Analitik → Analitik
+     Verileri → `iGameGod-*.ips` (veya Cr4shed/CrashReporter çıktısı),
+   - `IGGCompanion` günlük satırları (crash'ten önceki son 20 satır),
+   - reklamın ekran görüntüsü (hâlâ görünüyorsa).
+3. Crash logundaki "Exception Type" ve "Triggered by Thread" geri izlemesi,
+   suçlunun tweak mi SDK mi olduğunu gösterir.
 
 ## Kendi özelliğinizi ekleme
 
