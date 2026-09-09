@@ -28,6 +28,11 @@ make package                    # rootful .deb  -> packages/
 THEOS_PACKAGE_SCHEME=rootless make package   # rootless .deb
 ```
 
+> Not: rootless derlemede `control` içindeki `Architecture` satırı
+> `iphoneos-arm64` olmalıdır; CI bunu otomatik yapar ve her varyantı
+> ayrı adlandırır (`*.rootful.deb` / `*.rootless.deb`). Theos her iki
+> şemada da control'den türeyen adı kullandığı için bu ayrım şarttır.
+
 ## Cihaza kurma
 
 1. Üretilen `.deb`'i cihaza kopyalayın (`scp`) veya Sileo/Zebra dosya

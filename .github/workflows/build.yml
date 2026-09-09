@@ -93,9 +93,11 @@ jobs:
       - name: Tweak'i derle (rootless)
         run: |
           cd tweak
+          sed -i '' 's/^Architecture:.*/Architecture: iphoneos-arm64/' control
+          grep '^Architecture:' control
           TWEEK_VER="$(awk -F': *' '/^Version:/ {print $2}' control)"
           THEOS_PACKAGE_SCHEME=rootless make package
-          mv packages/*.deb "packages/com.example.iggcompanion_${TWEEK_VER}_iphoneos-arm64.rootless.deb"
+          mv packages/com.example.iggcompanion_*_iphoneos-arm64.deb "packages/com.example.iggcompanion_${TWEEK_VER}_iphoneos-arm64.rootless.deb"
           ls -la packages/
 
       - name: Tweak deb'lerini yukle
