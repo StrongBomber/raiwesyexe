@@ -6,6 +6,8 @@ Tüm önemli değişiklikler bu dosyada tutulur. Sürüm biçimi: `<upstream>-<r
 ## [Unreleased]
 
 ### Eklenen
+- `docs/IPA.md`: sideload enjeksiyon kılavuzu — hangi dosyanın IPA'ya
+  gömüleceği (loader + framework), kanıtlar, adım adım komutlar.
 - CI `tweak` işi sağlamlaştırıldı: kırılgan `install-theos` betiği yerine
   `git clone` ile kurulum (yamalı-SDK indirme adımı atlandı); rootful ve
   rootless derlemeler ayrı adımlara bölündü.

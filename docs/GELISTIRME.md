@@ -108,7 +108,7 @@ Notlar:
 ├── scripts/             # extract/package/verify/bump-version/make-repo + lib.sh
 ├── tests/               # mock-kök paketleme testleri
 ├── tweak/               # Theos companion tweak (örnek hooklar + reklam engelleme)
-├── docs/                # ANALIZ / OZELLIKLER / GELISTIRME
+├── docs/                # ANALIZ / OZELLIKLER / GELISTIRME / IPA
 ├── build/               # üretilenler (git'e girmez)
 ├── VERSION CHANGELOG.md Makefile README.md
 ```

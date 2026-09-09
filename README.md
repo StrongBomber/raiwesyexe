@@ -33,7 +33,7 @@ ls build/*.deb
 - 🤖 CI: her push'ta otomatik derleme + test, `v*` tag'inde Release
 
 Detay: [`docs/OZELLIKLER.md`](docs/OZELLIKLER.md) · Analiz raporu:
-[`docs/ANALIZ.md`](docs/ANALIZ.md) · Kılavuz: [`docs/GELISTIRME.md`](docs/GELISTIRME.md)
+[`docs/ANALIZ.md`](docs/ANALIZ.md) · Kılavuz: [`docs/GELISTIRME.md`](docs/GELISTIRME.md) · IPA enjeksiyonu: [`docs/IPA.md`](docs/IPA.md)
 
 ## Proje yapısı
 
@@ -44,7 +44,7 @@ packaging/control/   control + yeni kurulum scriptleri
 scripts/             extract / package / verify / bump-version / make-repo
 tests/               mock-kök paketleme testleri (cihaz gerekmez)
 tweak/               companion tweak: örnek hooklar + reklam engelleme (Theos)
-docs/                analiz + özellikler + geliştirme kılavuzu
+docs/                analiz + özellikler + kılavuzlar (gelistirme, IPA)
 build/               üretilenler (git'e girmez)
 ```
 
