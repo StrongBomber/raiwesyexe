@@ -1,0 +1,15 @@
+# Consumed by .github/workflows/fetch-bundle.yml when it is triggered by a push
+# to main. Edit these values, merge to main, and CI fetches the bundle.
+#
+# This indirection exists because dispatching a workflow needs the actions:write
+# scope, which the agent's GitHub token does not have (HTTP 403 "Resource not
+# accessible by integration"). A merged PR produces a push to main instead.
+#
+# A Drive source must be shared with "anyone with the link" — the runner does
+# not authenticate. Use source_kind=url for a direct download link.
+source=1hWfDsFIGJcgyBx-1d9CiIENVDhDaXXFa
+source_kind=drive
+filename=WorldSoccerChamps.xapk
+expected_md5=6a2db1ec852c44ab0abf958835803a94
+commit=true
+upload_artifact=false
