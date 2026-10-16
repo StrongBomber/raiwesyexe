@@ -3,12 +3,13 @@
 #   make fetch-apk   URL='https://data.winudf.com/XAPK/....'   # download into apk/
 #   make install-apk [XAPK=apk/Foo.xapk] [SERIAL=emulator-5554]
 #   make check-apk                                             # is the bundle present & LFS-tracked?
+#   make fetch-ci SOURCE='<drive link or id>' [KIND=drive|url]  # let a GitHub runner fetch it
 #
 APK_DIR  ?= apk
 PKG      ?= com.monkeyibrow.worldsoccerchamps
 TOOL     := tools/install-xapk.sh
 
-.PHONY: help fetch-apk install-apk check-apk
+.PHONY: help fetch-apk install-apk check-apk fetch-ci
 
 help:
 	@sed -n '1,6p' Makefile | sed 's/^# \{0,1\}//'
@@ -37,3 +38,19 @@ check-apk:
 	    echo "  $$f: real file, $$size bytes"; \
 	  fi; \
 	done
+
+# The agent sandbox caps workspace files at 100 MiB and cannot reach
+# drive.google.com, so a >100 MiB bundle has to be fetched by a CI runner.
+# Requires: gh CLI, and a Drive file readable by "anyone with the link".
+KIND     ?= drive
+FILENAME ?= WorldSoccerChamps.xapk
+
+fetch-ci:
+	@test -n "$(SOURCE)" || { echo "usage: make fetch-ci SOURCE='https://drive.google.com/file/d/<ID>/view'"; exit 1; }
+	@command -v gh >/dev/null 2>&1 || { echo "gh CLI not found"; exit 1; }
+	gh workflow run fetch-bundle.yml \
+	  -f source='$(SOURCE)' \
+	  -f source_kind=$(KIND) \
+	  -f filename=$(FILENAME) \
+	  -f commit=true
+	@echo "Triggered. Watch it with: gh run watch"
