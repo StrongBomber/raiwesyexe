@@ -2,14 +2,19 @@ name: Fetch Android bundle
 
 # Pulls a large Android bundle into this repo from a source that a CI runner can
 # reach but the agent sandbox cannot (the sandbox caps workspace files at 100 MiB;
-# this bundle is 237,511,212 bytes).
+# the World Soccer Champs bundle is 237,511,212 bytes).
 #
-# Run it from the Actions tab -> "Fetch Android bundle" -> "Run workflow", or:
-#   gh workflow run fetch-bundle.yml \
-#     -f source='https://drive.google.com/file/d/<ID>/view' \
-#     -f source_kind=drive -f commit=true
+# Two ways to trigger it:
 #
-# For source_kind=drive the file must be readable by "anyone with the link",
+#   1. Actions tab -> "Fetch Android bundle" -> "Run workflow"
+#      gh workflow run fetch-bundle.yml -f source='<drive link or id>'
+#      (needs the actions:write scope; the agent's GitHub token gets HTTP 403)
+#
+#   2. Edit apk/REQUEST and get it onto main. Merging a PR produces a push to
+#      main, which runs this workflow with the values from that file. This is
+#      the path the agent can use.
+#
+# For a Drive source the file must be readable by "anyone with the link",
 # because the runner authenticates as nobody.
 
 on:
@@ -41,6 +46,9 @@ on:
         type: boolean
         required: false
         default: false
+  push:
+    branches: [main]
+    paths: ['apk/REQUEST']
 
 permissions:
   contents: write
@@ -53,18 +61,58 @@ jobs:
   fetch:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      OUT: apk/${{ inputs.filename }}
     steps:
       - name: Check out (with LFS)
         uses: actions/checkout@v4
         with:
           lfs: true
 
+      - name: Resolve request
+        id: cfg
+        run: |
+          set -euo pipefail
+          src="${{ inputs.source }}"
+          kind="${{ inputs.source_kind }}"
+          name="${{ inputs.filename }}"
+          md5="${{ inputs.expected_md5 }}"
+          commit="${{ inputs.commit }}"
+          artifact="${{ inputs.upload_artifact }}"
+          # A push event carries no inputs, so fall back to the key=value lines in
+          # apk/REQUEST. Explicit workflow_dispatch inputs always win.
+          if [ -z "$src" ] && [ -f apk/REQUEST ]; then
+            get() { sed -n "s/^$1=//p" apk/REQUEST | head -1 | tr -d '\r'; }
+            src="$(get source)"
+            kind="$(get source_kind)"
+            name="$(get filename)"
+            md5="$(get expected_md5)"
+            commit="$(get commit)"
+            artifact="$(get upload_artifact)"
+            echo "using apk/REQUEST"
+          fi
+          kind="${kind:-drive}"
+          name="${name:-WorldSoccerChamps.xapk}"
+          commit="${commit:-true}"
+          artifact="${artifact:-false}"
+          if [ -z "$src" ]; then
+            echo "::error::no source. Pass -f source=... or set source= in apk/REQUEST"
+            exit 1
+          fi
+          {
+            echo "src=$src"
+            echo "kind=$kind"
+            echo "name=$name"
+            echo "md5=$md5"
+            echo "commit=$commit"
+            echo "artifact=$artifact"
+            echo "out=apk/$name"
+          } >> "$GITHUB_OUTPUT"
+          echo "source=$src kind=$kind filename=$name commit=$commit artifact=$artifact"
+
       - name: Download the bundle
         env:
-          SRC: ${{ inputs.source }}
-          KIND: ${{ inputs.source_kind }}
+          SRC: ${{ steps.cfg.outputs.src }}
+          KIND: ${{ steps.cfg.outputs.kind }}
+          OUT: ${{ steps.cfg.outputs.out }}
         run: |
           set -euo pipefail
           mkdir -p apk
@@ -81,13 +129,15 @@ jobs:
           ls -l "$OUT"
 
       - name: Verify the bundle
+        env:
+          OUT: ${{ steps.cfg.outputs.out }}
         run: |
           set -euo pipefail
           size="$(stat -c %s "$OUT")"
           md5="$(md5sum "$OUT" | cut -d' ' -f1)"
           echo "size: $size bytes"
           echo "md5:  $md5"
-          expected="${{ inputs.expected_md5 }}"
+          expected="${{ steps.cfg.outputs.md5 }}"
           if [ -n "$expected" ] && [ "$md5" != "$expected" ]; then
             echo "::error::MD5 mismatch: got $md5, expected $expected"
             exit 1
@@ -101,7 +151,9 @@ jobs:
           sha256sum "$OUT" | tee "$OUT.sha256"
 
       - name: Commit via Git LFS
-        if: inputs.commit
+        if: steps.cfg.outputs.commit == 'true'
+        env:
+          NAME: ${{ steps.cfg.outputs.name }}
         run: |
           set -euo pipefail
           # .gitattributes already routes *.xapk/*.apk/*.aab/*.obb through LFS.
@@ -114,11 +166,11 @@ jobs:
             exit 0
           fi
           git lfs status
-          git commit -m "Add ${{ inputs.filename }} bundle"
+          git commit -m "Add $NAME bundle"
           git push
 
       - name: Upload as workflow artifact
-        if: inputs.upload_artifact
+        if: steps.cfg.outputs.artifact == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: android-bundle
@@ -128,12 +180,14 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          OUT: ${{ steps.cfg.outputs.out }}
         run: |
           {
             echo "### Bundle"
             echo "| | |"
             echo "|---|---|"
-            echo "| file | \`${{ inputs.filename }}\` |"
+            echo "| file | \`${{ steps.cfg.outputs.name }}\` |"
             if [ -f "$OUT" ]; then
               echo "| size | $(stat -c %s "$OUT") bytes |"
               echo "| md5 | \`$(md5sum "$OUT" | cut -d' ' -f1)\` |"
