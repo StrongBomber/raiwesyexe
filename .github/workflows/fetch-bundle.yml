@@ -1,0 +1,144 @@
+name: Fetch Android bundle
+
+# Pulls a large Android bundle into this repo from a source that a CI runner can
+# reach but the agent sandbox cannot (the sandbox caps workspace files at 100 MiB;
+# this bundle is 237,511,212 bytes).
+#
+# Run it from the Actions tab -> "Fetch Android bundle" -> "Run workflow", or:
+#   gh workflow run fetch-bundle.yml \
+#     -f source='https://drive.google.com/file/d/<ID>/view' \
+#     -f source_kind=drive -f commit=true
+#
+# For source_kind=drive the file must be readable by "anyone with the link",
+# because the runner authenticates as nobody.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Drive link or bare Drive file ID (source_kind=drive), or any direct download URL (source_kind=url)"
+        required: true
+      source_kind:
+        description: "What the 'source' value is"
+        type: choice
+        options: [drive, url]
+        default: drive
+      filename:
+        description: "Name to store it as under apk/"
+        required: false
+        default: "WorldSoccerChamps.xapk"
+      expected_md5:
+        description: "Expected MD5 of the bundle (leave empty to skip the check)"
+        required: false
+        default: "6a2db1ec852c44ab0abf958835803a94"
+      commit:
+        description: "Commit the bundle into this repo via Git LFS"
+        type: boolean
+        required: false
+        default: true
+      upload_artifact:
+        description: "Also upload as a workflow artifact (consumes Actions storage quota)"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch-bundle-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OUT: apk/${{ inputs.filename }}
+    steps:
+      - name: Check out (with LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Download the bundle
+        env:
+          SRC: ${{ inputs.source }}
+          KIND: ${{ inputs.source_kind }}
+        run: |
+          set -euo pipefail
+          mkdir -p apk
+          if [ "$KIND" = "drive" ]; then
+            python3 -m pip install --quiet --disable-pip-version-check gdown
+            if printf '%s' "$SRC" | grep -Eq '^[A-Za-z0-9_-]{20,}$'; then
+              gdown --id "$SRC" -O "$OUT"
+            else
+              gdown --fuzzy "$SRC" -O "$OUT"
+            fi
+          else
+            curl -fL --retry 3 --retry-delay 2 -C - -o "$OUT" "$SRC"
+          fi
+          ls -l "$OUT"
+
+      - name: Verify the bundle
+        run: |
+          set -euo pipefail
+          size="$(stat -c %s "$OUT")"
+          md5="$(md5sum "$OUT" | cut -d' ' -f1)"
+          echo "size: $size bytes"
+          echo "md5:  $md5"
+          expected="${{ inputs.expected_md5 }}"
+          if [ -n "$expected" ] && [ "$md5" != "$expected" ]; then
+            echo "::error::MD5 mismatch: got $md5, expected $expected"
+            exit 1
+          fi
+          # A valid XAPK is a ZIP; unzip -t fails on a truncated or HTML error page.
+          unzip -tq "$OUT"
+          echo "--- archive contents ---"
+          unzip -l "$OUT" | sed -n '1,30p'
+          # Path is derived from $OUT (not from an expression) so this step can be
+          # run and tested outside Actions.
+          sha256sum "$OUT" | tee "$OUT.sha256"
+
+      - name: Commit via Git LFS
+        if: inputs.commit
+        run: |
+          set -euo pipefail
+          # .gitattributes already routes *.xapk/*.apk/*.aab/*.obb through LFS.
+          git lfs install --local
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .gitattributes apk/
+          if git diff --cached --quiet; then
+            echo "Nothing new to commit."
+            exit 0
+          fi
+          git lfs status
+          git commit -m "Add ${{ inputs.filename }} bundle"
+          git push
+
+      - name: Upload as workflow artifact
+        if: inputs.upload_artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-bundle
+          path: apk/
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Bundle"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| file | \`${{ inputs.filename }}\` |"
+            if [ -f "$OUT" ]; then
+              echo "| size | $(stat -c %s "$OUT") bytes |"
+              echo "| md5 | \`$(md5sum "$OUT" | cut -d' ' -f1)\` |"
+              echo "| sha256 | \`$(sha256sum "$OUT" | cut -d' ' -f1)\` |"
+            else
+              echo "| status | download failed |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

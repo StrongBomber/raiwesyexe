@@ -1,0 +1,5 @@
+# Transient download/scratch area used by tools/install-xapk.sh — never committed.
+dist/
+
+# Committed Android artifacts live in apk/ and are tracked by Git LFS
+# (see .gitattributes). They are deliberately NOT ignored.
