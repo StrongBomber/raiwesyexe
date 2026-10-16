@@ -114,17 +114,41 @@ jobs:
           KIND: ${{ steps.cfg.outputs.kind }}
           OUT: ${{ steps.cfg.outputs.out }}
         run: |
-          set -euo pipefail
+          # No `set -e` here: the log endpoint is not always reachable, so failures
+          # are re-emitted as ::error:: annotations, which the check-runs API does
+          # return. That is how this step stays debuggable from outside the UI.
+          set -uo pipefail
           mkdir -p apk
+          LOG=/tmp/download.log
+          : > "$LOG"
+          rc=0
           if [ "$KIND" = "drive" ]; then
-            python3 -m pip install --quiet --disable-pip-version-check gdown
-            if printf '%s' "$SRC" | grep -Eq '^[A-Za-z0-9_-]{20,}$'; then
-              gdown --id "$SRC" -O "$OUT"
-            else
-              gdown --fuzzy "$SRC" -O "$OUT"
+            # A venv sidesteps PEP 668 (externally-managed-environment), which
+            # makes `pip install` fail on newer Ubuntu images.
+            python3 -m venv /tmp/gdvenv >>"$LOG" 2>&1 || rc=$?
+            if [ "$rc" -eq 0 ]; then
+              /tmp/gdvenv/bin/pip install --quiet --disable-pip-version-check gdown >>"$LOG" 2>&1 || rc=$?
+            fi
+            if [ "$rc" -eq 0 ]; then
+              GD=/tmp/gdvenv/bin/gdown
+              "$GD" --version >>"$LOG" 2>&1 || true
+              # gdown 6.x takes a positional url_or_id. The old --id / --fuzzy
+              # flags are gone, and passing them makes argparse exit 2.
+              "$GD" "$SRC" -O "$OUT" >>"$LOG" 2>&1 || rc=$?
             fi
           else
-            curl -fL --retry 3 --retry-delay 2 -C - -o "$OUT" "$SRC"
+            curl -fL --retry 3 --retry-delay 2 -C - -o "$OUT" "$SRC" >>"$LOG" 2>&1 || rc=$?
+          fi
+          echo "--- download log ---"
+          cat "$LOG"
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::download tool exited rc=$rc"
+          elif [ ! -s "$OUT" ]; then
+            echo "::error::tool exited 0 but $OUT is missing or empty"
+          fi
+          if [ "$rc" -ne 0 ] || [ ! -s "$OUT" ]; then
+            tail -n 9 "$LOG" | cut -c1-190 | sed 's/^/::error::/'
+            exit 1
           fi
           ls -l "$OUT"
 

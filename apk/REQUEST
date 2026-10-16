@@ -13,3 +13,4 @@ filename=WorldSoccerChamps.xapk
 expected_md5=6a2db1ec852c44ab0abf958835803a94
 commit=true
 upload_artifact=false
+# retry 2: run 38964578955 failed because gdown 6.x dropped --id (argparse exits 2).
