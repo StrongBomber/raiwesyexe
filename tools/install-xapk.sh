@@ -8,11 +8,19 @@
 #   * optionally *.obb expansion files that must be pushed to /sdcard/Android/obb/<package>/
 #
 # Usage:
-#   tools/install-xapk.sh <url-or-local-file> [--serial <device>] [--package <pkg>] [--keep] [--dry-run]
+#   tools/install-xapk.sh <url-or-local-file> [options]
+#
+# Options:
+#   --serial <device>   target device when more than one is attached
+#   --package <pkg>     override the package name (normally read from manifest.json)
+#   --fetch-only        download + verify the bundle, then stop (no adb needed)
+#   --dry-run           print the adb commands without running them
+#   --keep              do not delete the unpacked files on exit
 #
 # Examples:
 #   tools/install-xapk.sh https://data.winudf.com/XAPK/....xapk
 #   tools/install-xapk.sh ~/Downloads/WorldSoccerChamps.xapk --serial emulator-5554
+#   DIST_DIR=apk tools/install-xapk.sh <url> --fetch-only
 #
 set -euo pipefail
 
@@ -21,6 +29,7 @@ SERIAL=""
 PACKAGE=""
 KEEP=0
 DRY_RUN=0
+FETCH_ONLY=0
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 info() { printf '==> %s\n' "$*" >&2; }
@@ -33,7 +42,7 @@ run() {
 }
 
 usage() {
-  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -41,6 +50,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --serial)  SERIAL="${2:-}";  shift 2 ;;
     --package) PACKAGE="${2:-}"; shift 2 ;;
+    --fetch-only) FETCH_ONLY=1; shift ;;
     --keep)    KEEP=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage 0 ;;
@@ -73,7 +83,14 @@ else
 fi
 
 unzip -tq "$XAPK" >/dev/null 2>&1 || die "$XAPK is not a valid ZIP/XAPK archive (partial download?)"
-info "archive ok: $(du -h "$XAPK" | cut -f1)"
+info "archive ok: $(du -h "$XAPK" | cut -f1) -> $XAPK"
+
+if [ "$FETCH_ONLY" -eq 1 ]; then
+  BYTES="$(wc -c < "$XAPK" | tr -d ' ')"
+  info "fetch-only: bundle verified, $BYTES bytes at $XAPK"
+  info "next: git add $XAPK && git commit && git push   (Git LFS handles it, see .gitattributes)"
+  exit 0
+fi
 
 # --- 2. Unpack ---------------------------------------------------------------
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/xapk.XXXXXX")"

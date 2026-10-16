@@ -1,6 +1,5 @@
-# Downloaded Android bundles — never commit these (hundreds of MB each)
+# Transient download/scratch area used by tools/install-xapk.sh — never committed.
 dist/
-*.xapk
-*.apk
-*.aab
-*.obb
+
+# Committed Android artifacts live in apk/ and are tracked by Git LFS
+# (see .gitattributes). They are deliberately NOT ignored.
