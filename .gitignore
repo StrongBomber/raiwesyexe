@@ -1,0 +1,6 @@
+# Downloaded Android bundles — never commit these (hundreds of MB each)
+dist/
+*.xapk
+*.apk
+*.aab
+*.obb
